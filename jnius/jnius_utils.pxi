@@ -1,4 +1,3 @@
-
 cdef parse_definition(definition):
     # not a function, just a field
     if definition[0] != '(':
@@ -29,7 +28,7 @@ cdef parse_definition(definition):
             c, argdef = argdef.split(';', 1)
             args.append(prefix + c + ';')
 
-    return ret, args
+    return ret, tuple(args)
 
 
 cdef void check_exception(JNIEnv *j_env) except *:
@@ -65,7 +64,6 @@ cdef void check_assignable_from(JNIEnv *env, JavaClass jc, bytes signature) exce
 
         result = bool(env[0].IsAssignableFrom(env, jc.j_cls, cls))
         env[0].ExceptionClear(env)
-        print 'CHECK FOR', jc.__javaclass__, signature, result
         assignable_from[(jc.__javaclass__, signature)] = bool(result)
 
     if result is False:
@@ -74,14 +72,14 @@ cdef void check_assignable_from(JNIEnv *env, JavaClass jc, bytes signature) exce
 
 
 cdef bytes lookup_java_object_name(JNIEnv *j_env, jobject j_obj):
-    from reflect import ensureclass, autoclass
-    ensureclass('java.lang.Object')
-    ensureclass('java.lang.Class')
-    cdef JavaClass obj = autoclass('java.lang.Object')(noinstance=True)
-    obj.instanciate_from(create_local_ref(j_env, j_obj))
-    cls = obj.getClass()
-    name = cls.getName()
-    ensureclass(name)
+    cdef jclass jcls = j_env[0].GetObjectClass(j_env, j_obj)
+    cdef jclass jcls2 = j_env[0].GetObjectClass(j_env, jcls)
+    cdef jmethodID jmeth = j_env[0].GetMethodID(j_env, jcls2, 'getName', '()Ljava/lang/String;')
+    cdef jobject js = j_env[0].CallObjectMethod(j_env, jcls, jmeth)
+    name = convert_jobject_to_python(j_env, b'Ljava/lang/String;', js)
+    j_env[0].DeleteLocalRef(j_env, js)
+    j_env[0].DeleteLocalRef(j_env, jcls)
+    j_env[0].DeleteLocalRef(j_env, jcls2)
     return name.replace('.', '/')
 
 
@@ -193,15 +191,28 @@ cdef int calculate_score(sign_args, args, is_varargs=False) except *:
                 score += 1
                 continue
 
+            if isinstance(arg, PythonJavaClass):
+                score += 1
+                continue
+
             # native type? not accepted
             return -1
 
         if r[0] == '[':
 
             if arg is None:
-                return 10
+                score += 10
+                continue
 
-            if not isinstance(arg, tuple) and not isinstance(arg, list):
+            if (r == '[B' or r == '[C') and isinstance(arg, basestring):
+                score += 10
+                continue
+
+            if r == '[B' and isinstance(arg, ByteArray):
+                score += 10
+                continue
+
+            if not isinstance(arg, (list, tuple)):
                 return -1
 
             # calculate the score for our subarray

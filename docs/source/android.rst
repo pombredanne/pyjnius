@@ -19,6 +19,8 @@ The `DisplayMetrics
     metrics = DisplayMetrics()
     print 'DPI', metrics.getDeviceDensity()
 
+Note: To access nested classes, use `$` like:
+`autoclass('android.provider.MediaStore$Images$Media')`.
 
 Recording an audio file
 -----------------------
@@ -213,8 +215,7 @@ You'll obtain something like this::
 Using TextToSpeech
 ------------------
 
-Same as the audio capture, by looking at the
-By looking at the `An introduction to Text-To-Speech in Android
+Same as the audio capture, by looking at the `An introduction to Text-To-Speech in Android
 <http://android-developers.blogspot.fr/2009/09/introduction-to-text-to-speech-in.html>`_ blog post, it's easy to do it with Pyjnius::
 
     from jnius import autoclass

@@ -14,24 +14,26 @@ cdef extern from "jni.h":
         char *optionString
         void *extraInfo
 
-cdef JNIEnv *default_env = NULL
+cdef JNIEnv *_platform_default_env = NULL
 
 def classpath():
     import platform
     from glob import glob
     from os import environ
-    from os.path import realpath
+    from os.path import realpath, dirname, join
 
-    if 'CLASSPATH' not in environ:
-        return realpath('.')
-    cp = environ.get('CLASSPATH')
     if platform.system() == 'Windows':
         split_char = ';'
     else:
         split_char = ':'
-    pre_paths = cp.split(split_char)
+
+    paths = [realpath('.'), join(dirname(__file__), 'src'), ]
+    if 'CLASSPATH' not in environ:
+        return split_char.join(paths)
+
+    cp = environ.get('CLASSPATH')
+    pre_paths = paths + cp.split(split_char)
     # deal with wildcards
-    paths = []
     for path in pre_paths:
         if not path.endswith('*'):
             paths.append(path)
@@ -40,7 +42,6 @@ def classpath():
             paths.extend(glob(path + '.JAR'))
     result = split_char.join(paths)
     return result
-    
 
 cdef void create_jnienv():
     cdef JavaVM* jvm
@@ -58,9 +59,9 @@ cdef void create_jnienv():
     args.nOptions = 1
     args.ignoreUnrecognized = JNI_FALSE
 
-    JNI_CreateJavaVM(&jvm, <void **>&default_env, &args)
+    JNI_CreateJavaVM(&jvm, <void **>&_platform_default_env, &args)
 
-cdef JNIEnv *get_jnienv():
-    if default_env == NULL:
+cdef JNIEnv *get_platform_jnienv():
+    if _platform_default_env == NULL:
         create_jnienv()
-    return default_env
+    return _platform_default_env
